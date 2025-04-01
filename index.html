@@ -179,6 +179,7 @@
             let gameActive = false;
             let myTurn = false;
             let gameBoard = Array(9).fill('');
+            let statusCheckInterval = null;
             
             const board = document.getElementById('board');
             const cells = document.querySelectorAll('.cell');
@@ -186,6 +187,28 @@
             const waitingScreen = document.getElementById('waitingScreen');
             const readyBtn = document.getElementById('readyBtn');
             const playersStatus = document.getElementById('playersStatus');
+
+            // Функция для проверки статуса игры
+            function startStatusCheck() {
+                // Останавливаем предыдущий интервал, если он был
+                if (statusCheckInterval) {
+                    clearInterval(statusCheckInterval);
+                }
+                
+                // Запускаем новый интервал
+                statusCheckInterval = setInterval(() => {
+                    try {
+                        console.log('Запрашиваем статус игры...');
+                        const data = {
+                            action: 'status'
+                        };
+                        tg.sendData(JSON.stringify(data));
+                    } catch (error) {
+                        console.error('Ошибка при запросе статуса:', error);
+                        clearInterval(statusCheckInterval);
+                    }
+                }, 2000); // Проверяем каждые 2 секунды
+            }
 
             // Обработчик нажатия кнопки "Готов"
             readyBtn.addEventListener('click', () => {
@@ -201,6 +224,9 @@
                     console.log('Отправляем данные:', data);
                     tg.sendData(JSON.stringify(data));
                     console.log('Данные отправлены');
+
+                    // Запускаем проверку статуса
+                    startStatusCheck();
                 } catch (error) {
                     console.error('Ошибка при отправке данных:', error);
                     status.textContent = 'Ошибка при отправке данных: ' + error.message;
@@ -248,6 +274,10 @@
                     switch(data.type) {
                         case 'gameStart':
                             console.log('Начало игры:', data);
+                            // Останавливаем проверку статуса, так как игра началась
+                            if (statusCheckInterval) {
+                                clearInterval(statusCheckInterval);
+                            }
                             gameActive = true;
                             currentPlayer = data.symbol;
                             myTurn = data.symbol === 'X';
@@ -304,6 +334,13 @@
             tg.onEvent('error', function(error) {
                 console.error('WebApp error:', error);
                 status.textContent = 'Произошла ошибка. Попробуйте перезапустить игру.';
+            });
+
+            // Останавливаем проверку статуса при закрытии страницы
+            window.addEventListener('unload', () => {
+                if (statusCheckInterval) {
+                    clearInterval(statusCheckInterval);
+                }
             });
         }
     </script>
