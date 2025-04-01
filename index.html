@@ -147,17 +147,18 @@
 
         // Отладочная информация
         console.log('WebApp initialized');
-        console.log('User:', tg.initDataUnsafe.user);
+        console.log('Init data:', tg.initData);
+        console.log('Init data unsafe:', tg.initDataUnsafe);
 
         // Обработчик нажатия кнопки "Готов"
         readyBtn.addEventListener('click', () => {
             console.log('Ready button clicked');
             readyBtn.classList.add('active');
             readyBtn.disabled = true;
+
             // Отправляем сообщение боту о готовности
             const data = {
-                action: 'ready',
-                userId: tg.initDataUnsafe.user.id
+                action: 'ready'
             };
             console.log('Sending data:', data);
             tg.sendData(JSON.stringify(data));
@@ -171,18 +172,29 @@
             // Отправляем ход боту
             const data = {
                 action: 'move',
-                index: index,
-                userId: tg.initDataUnsafe.user.id
+                index: index
             };
             console.log('Sending move:', data);
             tg.sendData(JSON.stringify(data));
         };
 
         // Обработчик получения данных от бота
+        tg.onEvent('mainButtonClicked', function() {
+            console.log('Main button clicked');
+        });
+
+        // Обработчик сообщений от основного приложения
         window.addEventListener('message', function(event) {
-            console.log('Received message:', event.data);
+            console.log('Received raw message:', event.data);
+            
+            // Игнорируем сообщения от React DevTools
+            if (event.data.source && event.data.source.includes('react-devtools')) {
+                return;
+            }
+
             try {
                 const data = JSON.parse(event.data);
+                console.log('Processed message:', data);
                 
                 switch(data.type) {
                     case 'gameStart':
@@ -208,7 +220,7 @@
                         console.log('Game ended:', data);
                         gameActive = false;
                         status.textContent = data.message;
-                        if (data.winner) {
+                        if (data.winner && data.winningCombination) {
                             data.winningCombination.forEach(index => {
                                 cells[index].classList.add('winner');
                             });
@@ -226,13 +238,22 @@
                         break;
                 }
             } catch (error) {
-                console.error('Error processing message:', error);
+                // Игнорируем ошибки парсинга для сообщений, которые не являются JSON
+                if (!event.data.source) {
+                    console.error('Error processing message:', error);
+                }
             }
         });
 
         // Добавляем обработчики клика на ячейки
         cells.forEach((cell, index) => {
             cell.addEventListener('click', () => handleCellClick(index));
+        });
+
+        // Обработчик ошибок
+        tg.onEvent('error', function(error) {
+            console.error('WebApp error:', error);
+            status.textContent = 'Произошла ошибка. Попробуйте перезапустить игру.';
         });
     </script>
 </body>
