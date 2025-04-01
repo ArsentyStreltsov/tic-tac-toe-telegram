@@ -128,133 +128,156 @@
     </div>
 
     <script>
+        // Проверяем, запущено ли приложение в Telegram
+        if (!window.Telegram || !window.Telegram.WebApp) {
+            document.body.innerHTML = '<div style="text-align: center; padding: 20px;">Это приложение можно открыть только в Telegram</div>';
+            throw new Error('WebApp не инициализирован');
+        }
+
         let tg = window.Telegram.WebApp;
-        let currentPlayer = '';
-        let gameActive = false;
-        let myTurn = false;
-        let gameBoard = Array(9).fill('');
-        
-        const board = document.getElementById('board');
-        const cells = document.querySelectorAll('.cell');
-        const status = document.getElementById('gameStatus');
-        const waitingScreen = document.getElementById('waitingScreen');
-        const readyBtn = document.getElementById('readyBtn');
-        const playersStatus = document.getElementById('playersStatus');
 
-        // Инициализация Telegram WebApp
-        tg.expand();
-        tg.ready();
+        // Ждем полной инициализации WebApp
+        window.addEventListener('load', function() {
+            // Инициализация Telegram WebApp
+            tg.ready();
+            tg.expand();
 
-        // Отладочная информация
-        console.log('WebApp initialized');
-        console.log('Init data:', tg.initData);
-        console.log('Init data unsafe:', tg.initDataUnsafe);
-
-        // Обработчик нажатия кнопки "Готов"
-        readyBtn.addEventListener('click', () => {
-            console.log('Ready button clicked');
-            readyBtn.classList.add('active');
-            readyBtn.disabled = true;
-
-            // Отправляем сообщение боту о готовности
-            const data = {
-                action: 'ready'
-            };
-            console.log('Sending data:', data);
-            tg.sendData(JSON.stringify(data));
-        });
-
-        // Обработчик хода
-        const handleCellClick = (index) => {
-            if (!gameActive || !myTurn || gameBoard[index]) return;
-
-            console.log('Cell clicked:', index);
-            // Отправляем ход боту
-            const data = {
-                action: 'move',
-                index: index
-            };
-            console.log('Sending move:', data);
-            tg.sendData(JSON.stringify(data));
-        };
-
-        // Обработчик получения данных от бота
-        tg.onEvent('mainButtonClicked', function() {
-            console.log('Main button clicked');
-        });
-
-        // Обработчик сообщений от основного приложения
-        window.addEventListener('message', function(event) {
-            console.log('Received raw message:', event.data);
+            // Отладочная информация
+            console.log('WebApp initialized');
+            console.log('Init data:', tg.initData);
+            console.log('Init data unsafe:', tg.initDataUnsafe);
             
-            // Игнорируем сообщения от React DevTools
-            if (event.data.source && event.data.source.includes('react-devtools')) {
+            if (!tg.initDataUnsafe || !tg.initDataUnsafe.user) {
+                console.error('Ошибка: данные пользователя недоступны');
+                document.getElementById('gameStatus').textContent = 'Ошибка инициализации. Попробуйте перезапустить приложение.';
                 return;
             }
 
-            try {
-                const data = JSON.parse(event.data);
-                console.log('Processed message:', data);
+            console.log('User:', tg.initDataUnsafe.user);
+            
+            // Инициализация игровых элементов
+            initializeGame();
+        });
+
+        function initializeGame() {
+            let currentPlayer = '';
+            let gameActive = false;
+            let myTurn = false;
+            let gameBoard = Array(9).fill('');
+            
+            const board = document.getElementById('board');
+            const cells = document.querySelectorAll('.cell');
+            const status = document.getElementById('gameStatus');
+            const waitingScreen = document.getElementById('waitingScreen');
+            const readyBtn = document.getElementById('readyBtn');
+            const playersStatus = document.getElementById('playersStatus');
+
+            // Обработчик нажатия кнопки "Готов"
+            readyBtn.addEventListener('click', () => {
+                console.log('Ready button clicked');
+                readyBtn.classList.add('active');
+                readyBtn.disabled = true;
+
+                // Отправляем сообщение боту о готовности
+                const data = {
+                    action: 'ready'
+                };
+                console.log('Sending data:', data);
+                tg.sendData(JSON.stringify(data));
+            });
+
+            // Обработчик хода
+            const handleCellClick = (index) => {
+                if (!gameActive || !myTurn || gameBoard[index]) return;
+
+                console.log('Cell clicked:', index);
+                // Отправляем ход боту
+                const data = {
+                    action: 'move',
+                    index: index
+                };
+                console.log('Sending move:', data);
+                tg.sendData(JSON.stringify(data));
+            };
+
+            // Обработчик получения данных от бота
+            tg.onEvent('mainButtonClicked', function() {
+                console.log('Main button clicked');
+            });
+
+            // Обработчик сообщений от основного приложения
+            window.addEventListener('message', function(event) {
+                console.log('Received raw message:', event.data);
                 
-                switch(data.type) {
-                    case 'gameStart':
-                        console.log('Game starting:', data);
-                        gameActive = true;
-                        currentPlayer = data.symbol;
-                        myTurn = data.symbol === 'X';
-                        waitingScreen.style.display = 'none';
-                        board.style.display = 'grid';
-                        status.textContent = myTurn ? 'Ваш ход' : 'Ход противника';
-                        break;
-
-                    case 'move':
-                        console.log('Move received:', data);
-                        gameBoard[data.index] = data.symbol;
-                        cells[data.index].textContent = data.symbol;
-                        cells[data.index].classList.add(data.symbol.toLowerCase());
-                        myTurn = data.symbol !== currentPlayer;
-                        status.textContent = myTurn ? 'Ваш ход' : 'Ход противника';
-                        break;
-
-                    case 'gameEnd':
-                        console.log('Game ended:', data);
-                        gameActive = false;
-                        status.textContent = data.message;
-                        if (data.winner && data.winningCombination) {
-                            data.winningCombination.forEach(index => {
-                                cells[index].classList.add('winner');
-                            });
-                        }
-                        break;
-
-                    case 'playersUpdate':
-                        console.log('Players update:', data);
-                        playersStatus.textContent = `Готовы: ${data.readyCount}/2`;
-                        break;
-
-                    case 'error':
-                        console.log('Error:', data);
-                        status.textContent = data.message;
-                        break;
+                // Игнорируем сообщения от React DevTools
+                if (event.data.source && event.data.source.includes('react-devtools')) {
+                    return;
                 }
-            } catch (error) {
-                // Игнорируем ошибки парсинга для сообщений, которые не являются JSON
-                if (!event.data.source) {
-                    console.error('Error processing message:', error);
+
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Processed message:', data);
+                    
+                    switch(data.type) {
+                        case 'gameStart':
+                            console.log('Game starting:', data);
+                            gameActive = true;
+                            currentPlayer = data.symbol;
+                            myTurn = data.symbol === 'X';
+                            waitingScreen.style.display = 'none';
+                            board.style.display = 'grid';
+                            status.textContent = myTurn ? 'Ваш ход' : 'Ход противника';
+                            break;
+
+                        case 'move':
+                            console.log('Move received:', data);
+                            gameBoard[data.index] = data.symbol;
+                            cells[data.index].textContent = data.symbol;
+                            cells[data.index].classList.add(data.symbol.toLowerCase());
+                            myTurn = data.symbol !== currentPlayer;
+                            status.textContent = myTurn ? 'Ваш ход' : 'Ход противника';
+                            break;
+
+                        case 'gameEnd':
+                            console.log('Game ended:', data);
+                            gameActive = false;
+                            status.textContent = data.message;
+                            if (data.winner && data.winningCombination) {
+                                data.winningCombination.forEach(index => {
+                                    cells[index].classList.add('winner');
+                                });
+                            }
+                            break;
+
+                        case 'playersUpdate':
+                            console.log('Players update:', data);
+                            playersStatus.textContent = `Готовы: ${data.readyCount}/2`;
+                            break;
+
+                        case 'error':
+                            console.log('Error:', data);
+                            status.textContent = data.message;
+                            break;
+                    }
+                } catch (error) {
+                    // Игнорируем ошибки парсинга для сообщений, которые не являются JSON
+                    if (!event.data.source) {
+                        console.error('Error processing message:', error);
+                    }
                 }
-            }
-        });
+            });
 
-        // Добавляем обработчики клика на ячейки
-        cells.forEach((cell, index) => {
-            cell.addEventListener('click', () => handleCellClick(index));
-        });
+            // Добавляем обработчики клика на ячейки
+            cells.forEach((cell, index) => {
+                cell.addEventListener('click', () => handleCellClick(index));
+            });
 
-        // Обработчик ошибок
-        tg.onEvent('error', function(error) {
-            console.error('WebApp error:', error);
-            status.textContent = 'Произошла ошибка. Попробуйте перезапустить игру.';
-        });
+            // Обработчик ошибок
+            tg.onEvent('error', function(error) {
+                console.error('WebApp error:', error);
+                status.textContent = 'Произошла ошибка. Попробуйте перезапустить игру.';
+            });
+        }
     </script>
 </body>
 </html> 
