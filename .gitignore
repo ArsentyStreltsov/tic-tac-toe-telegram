@@ -16,6 +16,7 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -23,7 +24,8 @@ venv/
 
 # Environment variables
 .env
-config.py
+.env.local
+.env.*.local
 
 # IDE
 .idea/
@@ -33,4 +35,9 @@ config.py
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db 
