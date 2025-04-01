@@ -330,187 +330,36 @@ async def handle_quiz_answer(update: Update, context):
 async def handle_webapp_data(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик данных от веб-приложения"""
     try:
-        print("\n=== Новые данные от веб-приложения ===")
+        print("\n=== ПОЛУЧЕНЫ ДАННЫЕ ОТ ВЕБ-ПРИЛОЖЕНИЯ ===")
         print(f"Update ID: {update.update_id}")
         print(f"User ID: {update.effective_user.id}")
         print(f"Username: {update.effective_user.username}")
         print(f"Chat ID: {update.effective_chat.id}")
-        print(f"Raw web_app_data: {update.effective_message.web_app_data.data}")
+        print(f"Raw data: {update.effective_message.web_app_data.data}")
         
+        # Пробуем разобрать данные
         data = json.loads(update.effective_message.web_app_data.data)
-        print(f"\nParsed data: {json.dumps(data, indent=2, ensure_ascii=False)}")
+        print(f"Parsed data: {json.dumps(data, indent=2, ensure_ascii=False)}")
         
-        chat_id = update.effective_chat.id
-        user_id = update.effective_user.id
-        query_id = data.get('query_id')
+        # Отправляем простой ответ
+        message = {
+            'type': 'playersUpdate',
+            'readyCount': 1,  # Для теста
+            'timestamp': data.get('timestamp')
+        }
         
-        print(f"\nТекущее состояние игр:")
-        print(f"Активные игры: {list(games.keys())}")
-        if chat_id in games:
-            game = games[chat_id]
-            print(f"Игра в чате {chat_id}:")
-            print(f"- Готовые игроки: {game.ready_players}")
-            print(f"- Игроки и символы: {game.players}")
-            print(f"- Текущая доска: {game.board}")
-
-        if data['action'] == 'status':
-            print(f"\nПолучен запрос статуса от игрока {user_id}")
-            message = {
-                'type': 'playersUpdate',
-                'readyCount': len(games[chat_id].ready_players) if chat_id in games else 0
-            }
-            print(f"Отправляем статус: {json.dumps(message, indent=2, ensure_ascii=False)}")
-            
-            if query_id:
-                await context.bot.answer_web_app_query(
-                    web_app_query_id=query_id,
-                    result=InlineQueryResultArticle(
-                        id=str(update.update_id),
-                        title="Статус игры",
-                        input_message_content=InputTextMessageContent(
-                            message_text=json.dumps(message)
-                        )
-                    )
-                )
-            else:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=json.dumps(message)
-                )
-            return
+        print(f"Отправляем ответ: {json.dumps(message, indent=2, ensure_ascii=False)}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=json.dumps(message)
+        )
         
-        if data['action'] == 'ready':
-            print(f"\nПолучена команда 'ready' от пользователя {user_id}")
-            if chat_id not in games:
-                print(f"Создаем новую игру в чате {chat_id}")
-                games[chat_id] = TicTacToeGame()
-            
-            game = games[chat_id]
-            result = game.add_player(user_id)
-            print(f"Результат добавления игрока: {result}")
-            print(f"Текущие готовые игроки: {game.ready_players}")
-            
-            message = None
-            if result:
-                # Игра начинается
-                print("\nИгра начинается!")
-                print(f"Распределение символов: {game.players}")
-                message = {
-                    'type': 'gameStart',
-                    'symbol': 'X' if game.players['X'] == user_id else 'O',
-                    'message': 'Игра начинается!'
-                }
-            else:
-                # Обновляем статус готовности
-                message = {
-                    'type': 'playersUpdate',
-                    'readyCount': len(game.ready_players)
-                }
-            
-            print(f"\nОтправляем сообщение:")
-            print(json.dumps(message, indent=2, ensure_ascii=False))
-            
-            if query_id:
-                await context.bot.answer_web_app_query(
-                    web_app_query_id=query_id,
-                    result=InlineQueryResultArticle(
-                        id=str(update.update_id),
-                        title="Статус игры",
-                        input_message_content=InputTextMessageContent(
-                            message_text=json.dumps(message)
-                        )
-                    )
-                )
-            else:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=json.dumps(message)
-                )
-                
-        elif data['action'] == 'move':
-            print(f"\nПолучен ход от игрока {user_id} в позицию {data['index']}")
-            game = games.get(chat_id)
-            if not game:
-                error_message = {
-                    'type': 'error',
-                    'message': 'Игра не найдена'
-                }
-                print(f"\nОшибка: игра не найдена")
-                print(json.dumps(error_message, indent=2, ensure_ascii=False))
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=json.dumps(error_message)
-                )
-                return
-                
-            winning_combo, message = game.make_move(user_id, data['index'])
-            print(f"Результат хода: combo={winning_combo}, message={message}")
-            print(f"Текущая доска: {game.board}")
-            
-            if winning_combo:
-                # Игра закончена с победителем
-                game_message = {
-                    'type': 'gameEnd',
-                    'winner': True,
-                    'winningCombination': winning_combo,
-                    'message': message
-                }
-                print(f"\nИгра завершена победой:")
-                print(json.dumps(game_message, indent=2, ensure_ascii=False))
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=json.dumps(game_message)
-                )
-            elif message == "Ничья!":
-                # Игра закончена вничью
-                game_message = {
-                    'type': 'gameEnd',
-                    'winner': False,
-                    'message': message
-                }
-                print(f"\nИгра завершена вничью:")
-                print(json.dumps(game_message, indent=2, ensure_ascii=False))
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=json.dumps(game_message)
-                )
-            elif message:
-                # Ошибка хода
-                error_message = {
-                    'type': 'error',
-                    'message': message
-                }
-                print(f"\nОшибка хода:")
-                print(json.dumps(error_message, indent=2, ensure_ascii=False))
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=json.dumps(error_message)
-                )
-            else:
-                # Успешный ход
-                move_message = {
-                    'type': 'move',
-                    'index': data['index'],
-                    'symbol': game.board[data['index']]
-                }
-                print(f"\nУспешный ход:")
-                print(json.dumps(move_message, indent=2, ensure_ascii=False))
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=json.dumps(move_message)
-                )
-                
-    except json.JSONDecodeError as e:
-        print(f"\n=== Ошибка декодирования JSON ===")
-        print(f"Ошибка: {e}")
-        print(f"Сырые данные: {update.effective_message.web_app_data.data}")
-        await update.message.reply_text("Ошибка обработки данных")
     except Exception as e:
-        print(f"\n=== Неожиданная ошибка ===")
-        print(f"Тип ошибки: {type(e).__name__}")
-        print(f"Ошибка: {e}")
-        print(f"Update: {update}")
-        await update.message.reply_text(f"Произошла ошибка: {str(e)}")
+        print(f"\n=== ОШИБКА ===")
+        print(f"Тип: {type(e).__name__}")
+        print(f"Сообщение: {str(e)}")
+        if hasattr(update, 'effective_message'):
+            await update.effective_message.reply_text(f"Произошла ошибка: {str(e)}")
 
 def main() -> None:
     """Запуск бота"""

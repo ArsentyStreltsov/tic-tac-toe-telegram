@@ -128,6 +128,69 @@
     </div>
 
     <script>
+        let tg = window.Telegram.WebApp;
+        
+        // Инициализация
+        tg.ready();
+        tg.expand();
+        
+        console.log('=== Инициализация ===');
+        console.log('WebApp version:', tg.version);
+        console.log('Platform:', tg.platform);
+        console.log('Init data:', tg.initData);
+        console.log('Init data unsafe:', tg.initDataUnsafe);
+        
+        // Получаем элементы
+        const readyBtn = document.getElementById('readyBtn');
+        const gameStatus = document.getElementById('gameStatus');
+        const playersStatus = document.getElementById('playersStatus');
+        
+        // Обработчик нажатия кнопки
+        readyBtn.addEventListener('click', () => {
+            console.log('Кнопка нажата');
+            readyBtn.disabled = true;
+            readyBtn.classList.add('active');
+            
+            try {
+                // Отправляем простое сообщение
+                const data = {
+                    action: 'ready',
+                    timestamp: Date.now()
+                };
+                console.log('Отправляем данные:', data);
+                
+                tg.sendData(JSON.stringify(data));
+                console.log('Данные отправлены');
+                
+                // Показываем сообщение об отправке
+                gameStatus.textContent = 'Данные отправлены в ' + new Date().toLocaleTimeString();
+            } catch (error) {
+                console.error('Ошибка при отправке:', error);
+                gameStatus.textContent = 'Ошибка: ' + error.message;
+            }
+        });
+        
+        // Обработчик событий от основного приложения
+        window.addEventListener('message', (event) => {
+            console.log('Получено сообщение:', event.data);
+            
+            try {
+                const data = JSON.parse(event.data);
+                console.log('Обработанное сообщение:', data);
+                
+                if (data.type === 'playersUpdate') {
+                    playersStatus.textContent = `Готовы: ${data.readyCount}/2`;
+                }
+            } catch (error) {
+                console.error('Ошибка обработки сообщения:', error);
+            }
+        });
+        
+        // Обработчик ошибок WebApp
+        tg.onEvent('error', (error) => {
+            console.error('WebApp error:', error);
+            gameStatus.textContent = 'Ошибка WebApp: ' + error;
+        });
         // Проверяем, запущено ли приложение в Telegram
         if (!window.Telegram || !window.Telegram.WebApp) {
             document.body.innerHTML = '<div style="text-align: center; padding: 20px;">Это приложение можно открыть только в Telegram</div>';
